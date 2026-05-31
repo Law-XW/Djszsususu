@@ -1,0 +1,89 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+local flying = false
+local speed = 100
+
+local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+local frame = Instance.new("Frame", screenGui)
+frame.Size = UDim2.new(0, 180, 0, 100)
+frame.Position = UDim2.new(0.05, 0, 0.4, 0)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+frame.BorderSizePixel = 0
+frame.Active = true
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+
+local toggleBtn = Instance.new("TextButton", frame)
+toggleBtn.Size = UDim2.new(0.9, 0, 0.3, 0)
+toggleBtn.Position = UDim2.new(0.05, 0, 0.1, 0)
+toggleBtn.Text = "FLY: OFF"
+toggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 6)
+
+local sliderBg = Instance.new("Frame", frame)
+sliderBg.Size = UDim2.new(0.9, 0, 0.15, 0)
+sliderBg.Position = UDim2.new(0.05, 0, 0.65, 0)
+sliderBg.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+sliderBg.Name = "SliderBg"
+Instance.new("UICorner", sliderBg).CornerRadius = UDim.new(0, 4)
+
+local knob = Instance.new("Frame", sliderBg)
+knob.Size = UDim2.new(0.1, 0, 1, 0)
+knob.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+Instance.new("UICorner", knob).CornerRadius = UDim.new(0, 4)
+
+local function updateFly()
+    flying = not flying
+    toggleBtn.Text = flying and "FLY: ON" or "FLY: OFF"
+    toggleBtn.BackgroundColor3 = flying and Color3.fromRGB(0, 150, 80) or Color3.fromRGB(50, 50, 50)
+end
+
+toggleBtn.MouseButton1Click:Connect(updateFly)
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if not gpe and input.KeyCode == Enum.KeyCode.Q then updateFly() end
+end)
+
+sliderBg.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        local conn
+        conn = RunService.RenderStepped:Connect(function()
+            if not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) and not UserInputService.TouchEnabled then
+                conn:Disconnect() return 
+            end
+            local mousePos = UserInputService:GetMouseLocation()
+            local rel = math.clamp((mousePos.X - sliderBg.AbsolutePosition.X) / sliderBg.AbsoluteSize.X, 0, 1)
+            knob.Position = UDim2.new(rel - 0.05, 0, 0, 0)
+            speed = rel * 500
+        end)
+    end
+end)
+
+RunService.Heartbeat:Connect(function(dt)
+    if not flying then return end
+    local seat = player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.SeatPart
+    if not seat then return end
+    local model = seat:FindFirstAncestorOfClass("Model")
+    
+    local move = Vector3.new(0,0,0)
+    local thumbstick = UserInputService:GetMouseDelta() -- Basis für Mobile/Controller
+    
+    if UserInputService:IsKeyDown(Enum.KeyCode.W) then move += camera.CFrame.LookVector end
+    if UserInputService:IsKeyDown(Enum.KeyCode.S) then move -= camera.CFrame.LookVector end
+    if UserInputService:IsKeyDown(Enum.KeyCode.A) then move -= camera.CFrame.RightVector end
+    if UserInputService:IsKeyDown(Enum.KeyCode.D) then move += camera.CFrame.RightVector end
+    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move += Vector3.new(0, 1, 0) end
+    if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then move -= Vector3.new(0, 1, 0) end
+    
+    model:PivotTo(model:GetPivot() + (move * speed * dt))
+    
+    for _, part in pairs(model:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+            part.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+        end
+    end
+end)
